@@ -29,8 +29,6 @@
 <script setup>
 definePageMeta({ layout: 'default' })
 
-const user = { name: 'Ardiansyah Ramadhan' }
-
 const folderPalette = {
   kerja: { name: 'Kerja', color: '#7b6ef6', softColor: '#edebfe' },
   pribadi: { name: 'Pribadi', color: '#2fbf8f', softColor: '#e2f7f0' },
@@ -90,5 +88,5 @@ const notes = [
 const unfinished = computed(() =>
   notes.filter((n) => n.checklists.some((c) => !c.is_completed))
 )
-const recent = computed(() => [...notes].slice(0, 3))
+const recent = computed(() => [...notes])
 </script>
