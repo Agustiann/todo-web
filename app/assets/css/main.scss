@@ -224,12 +224,41 @@ ul {
         border-top: 1px solid var(--color-sidebar-line);
     }
 
+    &__section-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 10px;
+    }
+
     &__section-title {
         font-size: 11px;
         text-transform: uppercase;
         letter-spacing: 0.06em;
         color: var(--color-ink-soft);
-        margin-bottom: 10px;
+    }
+
+    &__folder-add {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        padding: 0;
+        flex-shrink: 0;
+        border-radius: var(--radius-sm);
+        color: var(--color-ink-soft);
+        transition: background 0.15s ease, color 0.15s ease;
+
+        svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        &:hover {
+            background: var(--color-sidebar-hover);
+            color: var(--color-bg);
+        }
     }
 
     &__folders {
@@ -352,18 +381,6 @@ ul {
         }
     }
 
-    &__folder-icon {
-        width: 18px;
-        height: 18px;
-        flex-shrink: 0;
-        color: inherit;
-    }
-
-    &__folder-name {
-        flex: 1;
-        text-align: left;
-    }
-
     &__folder-count {
         font-size: 12px;
         color: inherit;
@@ -433,6 +450,26 @@ ul {
         height: 16px;
         flex-shrink: 0;
         color: inherit;
+    }
+
+    &__note--input {
+        padding: 8px 12px;
+        gap: 8px;
+    }
+
+    &__note-input {
+        flex: 1;
+        min-width: 0;
+        border: none;
+        outline: none;
+        background: transparent;
+        font-family: var(--font-body);
+        font-size: 13px;
+        color: var(--color-ink);
+
+        &::placeholder {
+            color: var(--color-ink-soft);
+        }
     }
 
     .drag-preview {
@@ -959,7 +996,6 @@ ul {
         padding: 6px 8px;
         border-radius: var(--radius-sm);
         transition: background 0.15s ease;
-
         &:hover {
             background: var(--color-bg);
 
@@ -967,7 +1003,6 @@ ul {
                 opacity: 1;
             }
         }
-
         &--done {
             .update-note__checklist-input {
                 color: var(--color-ink-soft);
@@ -975,7 +1010,6 @@ ul {
             }
         }
     }
-
     &__checklist-checkbox {
         width: 16px;
         height: 16px;
@@ -983,7 +1017,6 @@ ul {
         accent-color: var(--color-accent);
         cursor: pointer;
     }
-
     &__checklist-input {
         flex: 1;
         border: none;
@@ -993,12 +1026,10 @@ ul {
         font-size: 14px;
         color: var(--color-ink);
         padding: 4px 2px;
-
         &::placeholder {
             color: var(--color-ink-soft);
         }
     }
-
     &__checklist-remove {
         flex-shrink: 0;
         width: 20px;
@@ -1012,23 +1043,19 @@ ul {
         line-height: 1;
         opacity: 0;
         transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
-
         &:hover {
             background: var(--color-danger-soft);
             color: var(--color-danger);
         }
     }
-
     &__image-input {
         display: none;
     }
-
     &__attachment-grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
         gap: 12px;
     }
-
     &__attachment-item {
         position: relative;
         display: flex;
@@ -1038,21 +1065,18 @@ ul {
         overflow: hidden;
         background: var(--color-bg);
     }
-
     &__attachment-preview {
         width: 100%;
         height: 90px;
         object-fit: cover;
         display: block;
     }
-
     &__attachment-meta {
         display: flex;
         flex-direction: column;
         gap: 2px;
         padding: 6px 8px;
     }
-
     &__attachment-name {
         font-size: 11px;
         font-weight: 600;
@@ -1061,12 +1085,10 @@ ul {
         overflow: hidden;
         text-overflow: ellipsis;
     }
-
     &__attachment-size {
         font-size: 10px;
         color: var(--color-ink-soft);
     }
-
     &__attachment-remove {
         position: absolute;
         top: 4px;
@@ -1082,12 +1104,10 @@ ul {
         font-size: 14px;
         line-height: 1;
         transition: background 0.15s ease;
-
         &:hover {
             background: var(--color-danger);
         }
     }
-
     &__row--image:hover &__row-resize {
         opacity: 1;
     }

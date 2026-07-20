@@ -81,17 +81,27 @@
                             + Tambah checklist
                         </button>
                     </div>
+
                     <p class="update-note__hint">
-                        Checklist belum tersimpan ke server (belum ada endpoint checklist).
+                        Checklist tersimpan otomatis saat kamu mengisi teksnya.
                     </p>
+
+                    <span v-if="checklistError" class="update-note__error">
+                        {{ checklistError }}
+                    </span>
+
                     <ul v-if="form.checklist.length" class="update-note__checklist">
-                        <li v-for="item in form.checklist" :key="item.id" class="update-note__checklist-item"
+                        <li v-for="item in sortedChecklist" :key="item.id" class="update-note__checklist-item"
                             :class="{ 'update-note__checklist-item--done': item.isCompleted }">
-                            <input v-model="item.isCompleted" type="checkbox" class="update-note__checklist-checkbox">
+                            <input v-model="item.isCompleted" type="checkbox" class="update-note__checklist-checkbox"
+                                :disabled="item.isSaving || item.isDeleting" @change="toggleChecklistItem(item)">
                             <input v-model="item.content" type="text" class="update-note__checklist-input"
-                                placeholder="Item checklist..." @keyup.enter="addChecklistItem">
+                                placeholder="Item checklist..." :disabled="item.isDeleting"
+                                :ref="(el) => setChecklistInputRef(el, item.id)"
+                                @keyup.enter="handleChecklistEnter(item)" @blur="syncChecklistContent(item)"
+                                @keydown.delete="handleChecklistBackspace(item, $event)">
                             <button type="button" class="update-note__checklist-remove" aria-label="Hapus item"
-                                @click="removeChecklistItem(item.id)">
+                                :disabled="item.isDeleting" @click="removeChecklistItem(item.id)">
                                 ×
                             </button>
                         </li>
@@ -122,8 +132,10 @@ const route = useRoute()
 const noteId = computed(() => route.query.id)
 
 const { fetchFolders } = useFolders()
+const { version: foldersSyncVersion } = useFoldersSync()
 const { fetchNote, updateNote, deleteNote } = useNotes()
 const { uploadImage, deleteImage, fetchImageBlobUrl } = useNoteImages()
+const { createChecklistItem, updateChecklistItem, deleteChecklistItem } = useNoteChecklists()
 const { notifyNotesChanged } = useNotesSync()
 
 const folders = ref([])
@@ -140,6 +152,7 @@ const isLoading = ref(true)
 const isSaving = ref(false)
 const saveError = ref('')
 const imageError = ref('')
+const checklistError = ref('')
 const imageInputRef = ref(null)
 const lastUpdated = ref(new Date())
 
@@ -151,6 +164,20 @@ const lastUpdatedLabel = computed(() => {
 })
 
 const createId = () => `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+const isTempId = (id) => typeof id === 'string' && id.startsWith('tmp-')
+
+const checklistInputRefs = {}
+const setChecklistInputRef = (el, id) => {
+    if (el) checklistInputRefs[id] = el
+    else delete checklistInputRefs[id]
+}
+
+const sortedChecklist = computed(() => {
+    return [...form.checklist].sort((a, b) => {
+        if (a.isCompleted === b.isCompleted) return 0
+        return a.isCompleted ? 1 : -1
+    })
+})
 
 const loadImagePreviews = (images) => {
     for (const image of images) {
@@ -195,9 +222,11 @@ const loadNote = async (id) => {
         form.content = note.content ?? ''
         revokeImagePreviews()
         form.checklist = (note.checklists ?? []).map(item => ({
-            id: item.id || createId(),
+            id: item.id,
             content: item.content,
             isCompleted: item.is_completed,
+            isSaving: false,
+            isDeleting: false,
         }))
         form.images = (note.images ?? []).map(image => ({
             id: image.id,
@@ -219,16 +248,126 @@ watch(noteId, (id) => {
     loadNote(id)
 }, { immediate: true })
 
+watch(foldersSyncVersion, async () => {
+    try {
+        folders.value = await fetchFolders()
+    } catch (error) {
+        // biarkan daftar folder lama tetap tampil kalau refetch gagal
+    }
+})
+
 const addChecklistItem = () => {
-    form.checklist.push({
+    const item = {
         id: createId(),
         content: '',
         isCompleted: false,
+        isSaving: false,
+        isDeleting: false,
+    }
+    form.checklist.push(item)
+    nextTick(() => {
+        checklistInputRefs[item.id]?.focus()
+    })
+    return item
+}
+
+const handleChecklistEnter = (item) => {
+    if (!item.content.trim()) return
+    syncChecklistContent(item)
+    addChecklistItem()
+}
+
+const focusChecklistInputEnd = (id) => {
+    nextTick(() => {
+        const el = checklistInputRefs[id]
+        if (!el) return
+        el.focus()
+        const len = el.value.length
+        el.setSelectionRange(len, len)
     })
 }
 
-const removeChecklistItem = (id) => {
-    form.checklist = form.checklist.filter(item => item.id !== id)
+const handleChecklistBackspace = (item, e) => {
+    if (item.content !== '') return
+    e.preventDefault()
+
+    const list = sortedChecklist.value
+    const index = list.findIndex(i => i.id === item.id)
+    const previous = index > 0 ? list[index - 1] : null
+
+    if (previous) {
+        focusChecklistInputEnd(previous.id)
+    }
+
+    removeChecklistItem(item.id)
+}
+
+const syncChecklistContent = async (item) => {
+    const content = item.content.trim()
+
+    if (!content) {
+        await removeChecklistItem(item.id)
+        return
+    }
+
+    item.isSaving = true
+    checklistError.value = ''
+
+    try {
+        if (isTempId(item.id)) {
+            const created = await createChecklistItem(noteId.value, content, item.isCompleted)
+            item.id = created.id
+            item.content = created.content
+            item.isCompleted = created.is_completed
+        } else {
+            await updateChecklistItem(noteId.value, item.id, { content })
+        }
+    } catch (error) {
+        checklistError.value = error?.data?.errors?.content?.[0]
+            || error?.data?.message
+            || 'Gagal menyimpan checklist.'
+    } finally {
+        item.isSaving = false
+    }
+}
+
+const toggleChecklistItem = async (item) => {
+    if (isTempId(item.id)) return
+
+    item.isSaving = true
+    checklistError.value = ''
+
+    try {
+        await updateChecklistItem(noteId.value, item.id, { is_completed: item.isCompleted })
+    } catch (error) {
+        item.isCompleted = !item.isCompleted
+        checklistError.value = error?.data?.message || 'Gagal memperbarui status checklist.'
+    } finally {
+        item.isSaving = false
+    }
+}
+
+const removeChecklistItem = async (id) => {
+    const item = form.checklist.find(i => i.id === id)
+    if (!item || item.isDeleting) return
+
+    if (isTempId(item.id)) {
+        form.checklist = form.checklist.filter(i => i.id !== id)
+        delete checklistInputRefs[id]
+        return
+    }
+
+    item.isDeleting = true
+    checklistError.value = ''
+
+    try {
+        await deleteChecklistItem(noteId.value, id)
+        form.checklist = form.checklist.filter(i => i.id !== id)
+        delete checklistInputRefs[id]
+    } catch (error) {
+        item.isDeleting = false
+        checklistError.value = error?.data?.message || 'Gagal menghapus checklist.'
+    }
 }
 
 const canAddImage = computed(() => form.images.length < MAX_IMAGES)

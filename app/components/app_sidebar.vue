@@ -42,6 +42,15 @@
                     <p class="sidebar__section-title">
                         Folder
                     </p>
+                    <button class="sidebar__folder-add" type="button" aria-label="Tambah Folder" @click="addFolder">
+                        <svg viewBox="0 0 20 20" fill="none">
+                            <path
+                                d="M2.5 5.5C2.5 4.67157 3.17157 4 4 4H7.17157C7.5694 4 7.9509 4.15804 8.23223 4.43934L9.29289 5.5H16C16.8284 5.5 17.5 6.17157 17.5 7V14.5C17.5 15.3284 16.8284 16 16 16H4C3.17157 16 2.5 15.3284 2.5 14.5V5.5Z"
+                                stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" />
+                            <path d="M10 8.5V13M7.5 10.75H12.5" stroke="currentColor" stroke-width="1.5"
+                                stroke-linecap="round" />
+                        </svg>
+                    </button>
                 </div>
 
                 <p v-if="loadError" class="update-note__error">{{ loadError }}</p>
@@ -87,6 +96,12 @@
                                     <ul v-if="openedMenuId === folder.id" class="sidebar__folder-dropdown">
                                         <li>
                                             <button type="button" class="sidebar__folder-dropdown-item"
+                                                @click.stop="startAddNote(folder)">
+                                                Catatan Baru
+                                            </button>
+                                        </li>
+                                        <li>
+                                            <button type="button" class="sidebar__folder-dropdown-item"
                                                 @click.stop="startRenameFolder(folder)">
                                                 Ganti nama
                                             </button>
@@ -105,6 +120,20 @@
 
                         <Transition name="fade">
                             <ul v-if="openedFolders.includes(folder.id)" class="sidebar__notes">
+                                <li v-if="creatingNoteFolderId === folder.id" class="sidebar__note-item">
+                                    <div class="sidebar__note sidebar__note--input">
+                                        <svg class="sidebar__note-icon" viewBox="0 0 24 24" fill="none">
+                                            <path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"
+                                                stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
+                                            <path d="M14 3v5h5" stroke="currentColor" stroke-width="1.7"
+                                                stroke-linejoin="round" />
+                                        </svg>
+                                        <input id="new-note-input" v-model="noteInputValue"
+                                            class="sidebar__note-input" placeholder="Judul catatan..." @click.stop
+                                            @keyup.enter="confirmNoteInput(folder.id)" @keyup.esc="cancelNoteInput"
+                                            @blur="confirmNoteInput(folder.id)">
+                                    </div>
+                                </li>
                                 <li v-for="note in folder.notes" :key="note.id" class="sidebar__note-item"
                                     :class="{ 'sidebar__note-item--dragging': draggedNote?.noteId === note.id }"
                                     draggable="true" @dragstart="handleNoteDragStart(note, folder.id, $event)"
@@ -126,25 +155,19 @@
 
                     <li v-for="note in unfiledNotes" :key="`unfiled-${note.id}`"
                         class="sidebar__note-item sidebar__note-item--flat"
-                        :class="{ 'sidebar__note-item--dragging': draggedNote?.noteId === note.id }"
-                        draggable="true" @dragstart="handleNoteDragStart(note, null, $event)"
-                        @dragend="handleNoteDragEnd">
+                        :class="{ 'sidebar__note-item--dragging': draggedNote?.noteId === note.id }" draggable="true"
+                        @dragstart="handleNoteDragStart(note, null, $event)" @dragend="handleNoteDragEnd">
                         <NuxtLink :to="`/notes/update?id=${note.id}`" class="sidebar__note sidebar__note--flat"
                             :class="{ 'sidebar__note--active': activeNoteId === note.id }">
                             <svg class="sidebar__note-icon" viewBox="0 0 24 24" fill="none">
                                 <path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"
                                     stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
-                                <path d="M14 3v5h5" stroke="currentColor" stroke-width="1.7"
-                                    stroke-linejoin="round" />
+                                <path d="M14 3v5h5" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
                             </svg>
                             <span>{{ note.title }}</span>
                         </NuxtLink>
                     </li>
                 </ul>
-
-                <button class="sidebar__folder-add" type="button" @click="addFolder">
-                    + Tambah Folder
-                </button>
 
             </div>
 
@@ -178,8 +201,9 @@ const activeNoteId = computed(() => route.path === '/notes/update' ? route.query
 
 const { user, fetchUser } = useAuth()
 const { fetchFolders, createFolder, updateFolder, deleteFolder: deleteFolderApi } = useFolders()
-const { fetchNotes, moveNote } = useNotes()
-const { version: notesSyncVersion } = useNotesSync()
+const { notifyFoldersChanged } = useFoldersSync()
+const { fetchNotes, moveNote, createNote } = useNotes()
+const { version: notesSyncVersion, notifyNotesChanged } = useNotesSync()
 
 const localFolders = ref([])
 const unfiledNotes = ref([])
@@ -240,6 +264,9 @@ const isCreatingFolder = ref(false)
 const folderInputValue = ref('')
 const tempFolderId = ref(null)
 const renamingFolderId = ref(null)
+
+const creatingNoteFolderId = ref(null)
+const noteInputValue = ref('')
 
 const toggleFolder = (id) => {
     const index = openedFolders.value.indexOf(id)
@@ -345,6 +372,7 @@ const confirmFolderInput = async () => {
                 isNew: false,
                 isRenaming: false,
             })
+            notifyFoldersChanged()
         } catch (error) {
             localFolders.value.splice(index, 1)
             alert(error?.data?.errors?.name?.[0] || error?.data?.message || 'Gagal membuat folder.')
@@ -364,6 +392,7 @@ const confirmFolderInput = async () => {
                 try {
                     const updated = await updateFolder(folder.id, name)
                     folder.name = updated.name
+                    notifyFoldersChanged()
                 } catch (error) {
                     alert(error?.data?.errors?.name?.[0] || error?.data?.message || 'Gagal mengubah nama folder.')
                 }
@@ -388,11 +417,45 @@ const deleteFolder = async (id) => {
     try {
         await deleteFolderApi(id)
         localFolders.value = localFolders.value.filter(f => f.id !== id)
-
         const openedIndex = openedFolders.value.indexOf(id)
         if (openedIndex > -1) openedFolders.value.splice(openedIndex, 1)
+        notifyFoldersChanged()
     } catch (error) {
         alert(error?.data?.message || 'Gagal menghapus folder.')
+    }
+}
+
+const startAddNote = (folder) => {
+    closeFolderMenu()
+    if (!openedFolders.value.includes(folder.id)) {
+        openedFolders.value.push(folder.id)
+    }
+    creatingNoteFolderId.value = folder.id
+    noteInputValue.value = ''
+    nextTick(() => {
+        document.getElementById('new-note-input')?.focus()
+    })
+}
+
+const cancelNoteInput = () => {
+    creatingNoteFolderId.value = null
+    noteInputValue.value = ''
+}
+
+const confirmNoteInput = async (folderId) => {
+    if (creatingNoteFolderId.value !== folderId) return
+    const title = noteInputValue.value.trim()
+    if (title === '') {
+        cancelNoteInput()
+        return
+    }
+    try {
+        await createNote({ title, folder_id: folderId })
+        notifyNotesChanged()
+    } catch (error) {
+        alert(error?.data?.errors?.title?.[0] || error?.data?.message || 'Gagal membuat catatan.')
+    } finally {
+        cancelNoteInput()
     }
 }
 

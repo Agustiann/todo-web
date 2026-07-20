@@ -17,10 +17,6 @@ interface SingleResponse<T> {
   data: T
 }
 
-// Batasan ini mengikuti StoreNoteImageRequest & MAX_IMAGES_PER_NOTE di backend
-// (App\Http\Controllers\Api\NoteImageController). Dipakai di frontend hanya
-// untuk validasi awal / UX cepat — backend tetap jadi sumber kebenaran dan
-// tetap memvalidasi ulang setiap request.
 export const MAX_IMAGES = 3
 export const MAX_IMAGE_SIZE = 2 * 1024 * 1024
 export const MAX_IMAGE_SIZE_LABEL = '2MB'

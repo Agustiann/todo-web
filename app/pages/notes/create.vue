@@ -14,7 +14,6 @@
             </div>
 
             <div class="update-note__card">
-
                 <div class="update-note__meta">
                     <div class="update-note__field">
                         <label for="note-folder">Folder</label>
@@ -79,15 +78,17 @@
                     </div>
 
                     <p class="update-note__hint">
-                        Checklist belum tersimpan ke server (belum ada endpoint checklist).
+                        Checklist akan disimpan setelah catatan dibuat.
                     </p>
 
                     <ul v-if="form.checklist.length" class="update-note__checklist">
-                        <li v-for="item in form.checklist" :key="item.id" class="update-note__checklist-item"
+                        <li v-for="item in sortedChecklist" :key="item.id" class="update-note__checklist-item"
                             :class="{ 'update-note__checklist-item--done': item.isCompleted }">
                             <input v-model="item.isCompleted" type="checkbox" class="update-note__checklist-checkbox">
                             <input v-model="item.content" type="text" class="update-note__checklist-input"
-                                placeholder="Item checklist..." @keyup.enter="addChecklistItem">
+                                placeholder="Item checklist..." :ref="(el) => setChecklistInputRef(el, item.id)"
+                                @keyup.enter="handleChecklistEnter(item)" @blur="handleChecklistBlur(item)"
+                                @keydown.delete="handleChecklistBackspace(item, $event)">
                             <button type="button" class="update-note__checklist-remove" aria-label="Hapus item"
                                 @click="removeChecklistItem(item.id)">
                                 ×
@@ -116,6 +117,7 @@ const router = useRouter()
 const { fetchFolders } = useFolders()
 const { createNote } = useNotes()
 const { uploadImage } = useNoteImages()
+const { createChecklistItem } = useNoteChecklists()
 const { notifyNotesChanged } = useNotesSync()
 
 const folders = ref([])
@@ -141,21 +143,68 @@ onMounted(async () => {
 })
 
 const createId = () => `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+const checklistInputRefs = {}
+const setChecklistInputRef = (el, id) => {
+    if (el) checklistInputRefs[id] = el
+    else delete checklistInputRefs[id]
+}
+const sortedChecklist = computed(() => {
+    return [...form.checklist].sort((a, b) => {
+        if (a.isCompleted === b.isCompleted) return 0
+        return a.isCompleted ? 1 : -1
+    })
+})
 
 const addChecklistItem = () => {
-    form.checklist.push({
+    const item = {
         id: createId(),
         content: '',
         isCompleted: false,
+    }
+    form.checklist.push(item)
+    nextTick(() => {
+        checklistInputRefs[item.id]?.focus()
     })
+    return item
 }
 
 const removeChecklistItem = (id) => {
     form.checklist = form.checklist.filter(item => item.id !== id)
+    delete checklistInputRefs[id]
 }
+const handleChecklistEnter = (item) => {
+    if (!item.content.trim()) return
+    addChecklistItem()
+}
+const handleChecklistBlur = (item) => {
+    if (!item.content.trim()) {
+        removeChecklistItem(item.id)
+    }
+}
+const focusChecklistInputEnd = (id) => {
+    nextTick(() => {
+        const el = checklistInputRefs[id]
+        if (!el) return
+        el.focus()
+        const len = el.value.length
+        el.setSelectionRange(len, len)
+    })
+}
+const handleChecklistBackspace = (item, e) => {
+    if (item.content !== '') return
+    e.preventDefault()
 
+    const list = sortedChecklist.value
+    const index = list.findIndex(i => i.id === item.id)
+    const previous = index > 0 ? list[index - 1] : null
+
+    if (previous) {
+        focusChecklistInputEnd(previous.id)
+    }
+
+    removeChecklistItem(item.id)
+}
 const canAddImage = computed(() => form.images.length < MAX_IMAGES)
-
 const triggerImageUpload = () => {
     if (!canAddImage.value) {
         imageError.value = `Maksimal ${MAX_IMAGES} gambar`
@@ -234,11 +283,26 @@ const handleSave = async () => {
                 failedUploads.push(image.name)
             }
         }
+        const failedChecklists = []
+        for (const item of form.checklist) {
+            const content = item.content.trim()
+            if (!content) continue
+
+            try {
+                await createChecklistItem(note.id, content, item.isCompleted)
+            } catch {
+                failedChecklists.push(content)
+            }
+        }
 
         notifyNotesChanged()
 
-        if (failedUploads.length) {
-            alert(`Catatan tersimpan, tapi gagal mengunggah: ${failedUploads.join(', ')}`)
+        const failureMessages = []
+        if (failedUploads.length) failureMessages.push(`gambar: ${failedUploads.join(', ')}`)
+        if (failedChecklists.length) failureMessages.push(`checklist: ${failedChecklists.join(', ')}`)
+
+        if (failureMessages.length) {
+            alert(`Catatan tersimpan, tapi gagal menyimpan ${failureMessages.join('; ')}`)
         }
 
         router.push('/notes')
@@ -257,7 +321,6 @@ const handleCancel = () => {
         const confirmed = confirm('Batalkan catatan ini? Perubahan yang belum disimpan akan hilang.')
         if (!confirmed) return
     }
-
     router.push('/notes')
 }
 </script>

@@ -11,6 +11,16 @@ interface SingleResponse<T> {
   data: T
 }
 
+export const useFoldersSync = () => {
+  const version = useState('folders-sync-version', () => 0)
+
+  const notifyFoldersChanged = () => {
+    version.value++
+  }
+
+  return { version, notifyFoldersChanged }
+}
+
 export const useFolders = () => {
   const api = useApi()
 
