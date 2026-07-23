@@ -24,7 +24,7 @@
                 </NuxtLink>
                 <NuxtLink to="/notes" class="sidebar__nav-item" active-class="sidebar__nav-item--active">
                     <svg class="sidebar__icon" viewBox="0 0 20 20" fill="none">
-                        <path d="M4 3.5h12M4 8h12M4 12.5h8" stroke="currentColor" stroke-width="1.5"
+                        <path d="M4 5.5h12M4 10h12M4 14.5h8" stroke="currentColor" stroke-width="1.5"
                             stroke-linecap="round" />
                     </svg>
                     Semua Catatan
@@ -32,7 +32,6 @@
                         {{ totalNotes }}
                     </span>
                 </NuxtLink>
-
             </nav>
             <div class="sidebar__section">
                 <div class="sidebar__section-header"
@@ -128,8 +127,8 @@
                                             <path d="M14 3v5h5" stroke="currentColor" stroke-width="1.7"
                                                 stroke-linejoin="round" />
                                         </svg>
-                                        <input id="new-note-input" v-model="noteInputValue"
-                                            class="sidebar__note-input" placeholder="Judul catatan..." @click.stop
+                                        <input id="new-note-input" v-model="noteInputValue" class="sidebar__note-input"
+                                            placeholder="Judul catatan..." @click.stop
                                             @keyup.enter="confirmNoteInput(folder.id)" @keyup.esc="cancelNoteInput"
                                             @blur="confirmNoteInput(folder.id)">
                                     </div>
@@ -223,7 +222,7 @@ const loadSidebarData = async () => {
         const notesByFolder = new Map()
         const unfiled = []
 
-        for (const note of notesResponse.data) {
+        for (const note of notesResponse.data.notes) {
             if (note.folder_id === null || note.folder_id === undefined) {
                 unfiled.push(note)
                 continue

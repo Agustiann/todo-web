@@ -13,6 +13,15 @@ interface RegisterPayload {
   password_confirmation: string
 }
 
+interface SingleResponse<T> {
+  message: string
+  data: T
+}
+
+interface LoginResponse extends SingleResponse<AuthUser> {
+  token: string
+}
+
 export const useAuth = () => {
   const api = useApi()
 
@@ -24,25 +33,23 @@ export const useAuth = () => {
   const user = useState<AuthUser | null>('auth_user', () => null)
 
   const login = async (email: string, password: string) => {
-    const response = await api<{ message: string; user: AuthUser; token: string }>(
-      '/auth/login',
-      {
-        method: 'POST',
-        body: { email, password },
-      }
-    )
+    const response = await api<LoginResponse>('/auth/login', {
+      method: 'POST',
+      body: { email, password },
+    })
 
     token.value = response.token
-    user.value = response.user
+    user.value = response.data
 
     return response
   }
 
   const register = async (payload: RegisterPayload) => {
-    return await api<{ message: string; user: AuthUser }>('/auth/register', {
+    const response = await api<SingleResponse<AuthUser>>('/auth/register', {
       method: 'POST',
       body: payload,
     })
+    return response
   }
 
   const logout = async () => {
@@ -55,9 +62,9 @@ export const useAuth = () => {
   }
 
   const fetchUser = async () => {
-    const response = await api<{ user: AuthUser }>('/auth/me')
-    user.value = response.user
-    return response.user
+    const response = await api<SingleResponse<AuthUser>>('/auth/me')
+    user.value = response.data
+    return response.data
   }
 
   const isAuthenticated = computed(() => !!token.value)

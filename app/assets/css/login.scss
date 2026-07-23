@@ -180,6 +180,10 @@ h2 {
   min-height: 14px;
   visibility: hidden;
   text-align: left;
+
+  &.is-visible {
+    visibility: visible;
+  }
 }
 
 .alert-error {

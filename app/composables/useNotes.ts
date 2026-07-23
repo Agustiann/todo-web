@@ -10,11 +10,17 @@ interface NoteChecklistItem {
   position: number
 }
 
+interface NoteFolder {
+  id: string
+  name: string
+}
+
 interface Note {
   id: string
   title: string
   content: string | null
   folder_id: string | null
+  folder: NoteFolder | null
   images: NoteImage[]
   checklists: NoteChecklistItem[]
   created_at: string
@@ -29,8 +35,10 @@ interface NotePayload {
 
 interface ListResponse<T> {
   message: string
-  meta: { total_all_notes: number }
-  data: T
+  data: {
+    total_all_notes: number
+    notes: T
+  }
 }
 
 interface SingleResponse<T> {

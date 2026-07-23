@@ -12,40 +12,44 @@
             <div v-if="errorMessage" class="alert-error">
                 {{ errorMessage }}
             </div>
-            <form @submit.prevent="register">
-                <div class="form-group">
+            <form novalidate @submit.prevent="register">
+                <div class="form-group" :class="{ error: fieldErrors.name }">
                     <label>Nama Lengkap</label>
-                    <input v-model="form.name" type="text" placeholder="Masukkan nama lengkap" required>
+                    <input v-model="form.name" type="text" placeholder="Masukkan nama lengkap">
+                    <span class="error-text" :class="{ 'is-visible': fieldErrors.name }">{{ fieldErrors.name }}</span>
                 </div>
 
-                <div class="form-group">
+                <div class="form-group" :class="{ error: fieldErrors.email }">
                     <label>Email</label>
-                    <input v-model="form.email" type="email" placeholder="Masukkan email" required>
+                    <input v-model="form.email" type="email" placeholder="Masukkan email">
+                    <span class="error-text" :class="{ 'is-visible': fieldErrors.email }">{{ fieldErrors.email }}</span>
                 </div>
 
-                <div class="form-group">
+                <div class="form-group" :class="{ error: fieldErrors.password }">
                     <label>Password</label>
                     <div class="password-input">
                         <input v-model="form.password" :type="showPassword ? 'text' : 'password'"
-                            placeholder="Masukkan password" required>
+                            placeholder="Masukkan password">
                         <button type="button" class="toggle-password" @click="showPassword = !showPassword">
                             <Eye v-if="!showPassword" :size="20" />
                             <EyeClosed v-else :size="20" />
                         </button>
                     </div>
+                    <span class="error-text" :class="{ 'is-visible': fieldErrors.password }">{{ fieldErrors.password }}</span>
                 </div>
 
-                <div class="form-group">
+                <div class="form-group" :class="{ error: fieldErrors.confirmPassword }">
                     <label>Konfirmasi Password</label>
                     <div class="password-input">
                         <input v-model="form.confirmPassword" :type="showConfirmPassword ? 'text' : 'password'"
-                            placeholder="Ulangi password" required>
+                            placeholder="Ulangi password">
                         <button type="button" class="toggle-password"
                             @click="showConfirmPassword = !showConfirmPassword">
                             <Eye v-if="!showConfirmPassword" :size="20" />
                             <EyeClosed v-else :size="20" />
                         </button>
                     </div>
+                    <span class="error-text" :class="{ 'is-visible': fieldErrors.confirmPassword }">{{ fieldErrors.confirmPassword }}</span>
                 </div>
 
                 <button type="submit" class="btn-login" :disabled="isSubmitting">
@@ -67,12 +71,13 @@ import '~/assets/css/login.scss'
 import { Eye, EyeClosed } from 'lucide-vue-next'
 
 const { register: registerRequest } = useAuth()
+const { errorMessage, handleApiError } = useApiError()
 
 const showPassword = ref(false)
 const showConfirmPassword = ref(false)
 const isSubmitting = ref(false)
 
-const errorMessage = ref('')
+const fieldErrors = ref({})
 
 const form = ref({
     name: '',
@@ -81,8 +86,34 @@ const form = ref({
     confirmPassword: '',
 })
 
+function validate() {
+    fieldErrors.value = {}
+
+    if (!form.value.name) {
+        fieldErrors.value.name = 'Kolom ini harus diisi!'
+    }
+
+    const emailError = validateEmail(form.value.email)
+    if (emailError) fieldErrors.value.email = emailError
+
+    if (!form.value.password) {
+        fieldErrors.value.password = 'Kolom ini harus diisi!'
+    }
+
+    if (!form.value.confirmPassword) {
+        fieldErrors.value.confirmPassword = 'Kolom ini harus diisi!'
+    } else if (form.value.password !== form.value.confirmPassword) {
+        fieldErrors.value.confirmPassword = 'Konfirmasi password tidak sama.'
+    }
+
+    return Object.keys(fieldErrors.value).length === 0
+}
+
 async function register() {
     errorMessage.value = ''
+
+    if (!validate()) return
+
     isSubmitting.value = true
 
     try {
@@ -95,13 +126,7 @@ async function register() {
 
         navigateTo('/auth/login')
     } catch (error) {
-        const data = error?.data
-
-        if (data?.errors) {
-            errorMessage.value = Object.values(data.errors).flat().join(' ')
-        } else {
-            errorMessage.value = data?.message || 'Terjadi kesalahan, silakan coba lagi.'
-        }
+        handleApiError(error)
     } finally {
         isSubmitting.value = false
     }

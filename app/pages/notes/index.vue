@@ -54,8 +54,8 @@ onMounted(async () => {
 
   try {
     const response = await fetchNotes()
-    notes.value = response.data
-    totalAllNotes.value = response.meta.total_all_notes
+    notes.value = response.data.notes
+    totalAllNotes.value = response.data.total_all_notes
   } catch (error) {
     loadError.value = error?.data?.message || 'Gagal memuat catatan.'
   } finally {

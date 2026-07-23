@@ -20,96 +20,23 @@
             <div v-else class="update-note__card">
 
                 <div class="update-note__meta">
-                    <div class="update-note__field">
-                        <label for="note-folder">Folder</label>
-                        <select id="note-folder" v-model="form.folderId">
-                            <option :value="null">Tanpa folder</option>
-                            <option v-for="folder in folders" :key="folder.id" :value="folder.id">
-                                {{ folder.name }}
-                            </option>
-                        </select>
-                    </div>
+                    <NoteFolderSelect v-model:folder-id="form.folderId" :folders="folders" />
                 </div>
 
                 <input v-model="form.title" class="update-note__title-input" placeholder="Judul catatan...">
 
-                <div class="update-note__section">
-                    <div class="update-note__section-header">
-                        <label>Lampiran Gambar ({{ form.images.length }}/{{ MAX_IMAGES }})</label>
-                        <button type="button" class="update-note__section-add" :disabled="!canAddImage"
-                            @click="triggerImageUpload">
-                            + Tambah gambar
-                        </button>
-                        <input ref="imageInputRef" type="file" accept="image/*" multiple
-                            class="update-note__image-input" @change="handleImageSelected">
-                    </div>
-
-                    <p class="update-note__hint">
-                        Maksimal {{ MAX_IMAGES }} gambar, masing-masing maksimal {{ MAX_IMAGE_SIZE_LABEL }}.
-                    </p>
-
-                    <span v-if="imageError" class="update-note__error">
-                        {{ imageError }}
-                    </span>
-
-                    <div v-if="form.images.length" class="update-note__attachment-grid">
-                        <div v-for="image in form.images" :key="image.id" class="update-note__attachment-item">
-                            <img :src="image.src" :alt="image.name" class="update-note__attachment-preview">
-                            <div class="update-note__attachment-meta">
-                                <span class="update-note__attachment-name">{{ image.name }}</span>
-                            </div>
-                            <button type="button" class="update-note__attachment-remove" aria-label="Hapus gambar"
-                                :disabled="image.isDeleting" @click="removeImage(image.id)">
-                                ×
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <NoteImageSection :images="form.images" :max-images="MAX_IMAGES" :max-size-label="MAX_IMAGE_SIZE_LABEL"
+                    :error="imageError" @select-files="handleImageSelected" @remove="removeImage" />
 
                 <div class="update-note__section">
-                    <div class="update-note__section-header">
-                        <label for="note-content">Isi Catatan</label>
-                    </div>
                     <textarea id="note-content" v-model="form.content" class="update-note__textarea" rows="6"
                         placeholder="Tulis catatan di sini..." />
                 </div>
 
-                <div class="update-note__section">
-                    <div class="update-note__section-header">
-                        <label>Checklist</label>
-                        <button type="button" class="update-note__section-add" @click="addChecklistItem">
-                            + Tambah checklist
-                        </button>
-                    </div>
-
-                    <p class="update-note__hint">
-                        Checklist tersimpan otomatis saat kamu mengisi teksnya.
-                    </p>
-
-                    <span v-if="checklistError" class="update-note__error">
-                        {{ checklistError }}
-                    </span>
-
-                    <ul v-if="form.checklist.length" class="update-note__checklist">
-                        <li v-for="item in sortedChecklist" :key="item.id" class="update-note__checklist-item"
-                            :class="{ 'update-note__checklist-item--done': item.isCompleted }">
-                            <input v-model="item.isCompleted" type="checkbox" class="update-note__checklist-checkbox"
-                                :disabled="item.isSaving || item.isDeleting" @change="toggleChecklistItem(item)">
-                            <input v-model="item.content" type="text" class="update-note__checklist-input"
-                                placeholder="Item checklist..." :disabled="item.isDeleting"
-                                :ref="(el) => setChecklistInputRef(el, item.id)"
-                                @keyup.enter="handleChecklistEnter(item)" @blur="syncChecklistContent(item)"
-                                @keydown.delete="handleChecklistBackspace(item, $event)">
-                            <button type="button" class="update-note__checklist-remove" aria-label="Hapus item"
-                                :disabled="item.isDeleting" @click="removeChecklistItem(item.id)">
-                                ×
-                            </button>
-                        </li>
-                    </ul>
-                    <p v-else class="update-note__empty-hint">
-                        Belum ada checklist.
-                    </p>
-                </div>
+                <NoteChecklistSection ref="checklistSectionRef" :items="form.checklist"
+                    hint="Checklist tersimpan otomatis saat kamu mengisi teksnya." :error="checklistError"
+                    @enter="handleChecklistEnter" @blur="syncChecklistContent" @toggle="toggleChecklistItem"
+                    @remove="removeChecklistItem" />
 
                 <div class="update-note__footer">
                     <span class="update-note__last-updated">
@@ -139,6 +66,7 @@ const { createChecklistItem, updateChecklistItem, deleteChecklistItem } = useNot
 const { notifyNotesChanged } = useNotesSync()
 
 const folders = ref([])
+const checklistSectionRef = ref(null)
 
 const form = reactive({
     title: '',
@@ -153,7 +81,6 @@ const isSaving = ref(false)
 const saveError = ref('')
 const imageError = ref('')
 const checklistError = ref('')
-const imageInputRef = ref(null)
 const lastUpdated = ref(new Date())
 
 const lastUpdatedLabel = computed(() => {
@@ -163,21 +90,7 @@ const lastUpdatedLabel = computed(() => {
     }).format(lastUpdated.value)
 })
 
-const createId = () => `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 const isTempId = (id) => typeof id === 'string' && id.startsWith('tmp-')
-
-const checklistInputRefs = {}
-const setChecklistInputRef = (el, id) => {
-    if (el) checklistInputRefs[id] = el
-    else delete checklistInputRefs[id]
-}
-
-const sortedChecklist = computed(() => {
-    return [...form.checklist].sort((a, b) => {
-        if (a.isCompleted === b.isCompleted) return 0
-        return a.isCompleted ? 1 : -1
-    })
-})
 
 const loadImagePreviews = (images) => {
     for (const image of images) {
@@ -252,54 +165,13 @@ watch(foldersSyncVersion, async () => {
     try {
         folders.value = await fetchFolders()
     } catch (error) {
-        // biarkan daftar folder lama tetap tampil kalau refetch gagal
     }
 })
-
-const addChecklistItem = () => {
-    const item = {
-        id: createId(),
-        content: '',
-        isCompleted: false,
-        isSaving: false,
-        isDeleting: false,
-    }
-    form.checklist.push(item)
-    nextTick(() => {
-        checklistInputRefs[item.id]?.focus()
-    })
-    return item
-}
 
 const handleChecklistEnter = (item) => {
     if (!item.content.trim()) return
     syncChecklistContent(item)
-    addChecklistItem()
-}
-
-const focusChecklistInputEnd = (id) => {
-    nextTick(() => {
-        const el = checklistInputRefs[id]
-        if (!el) return
-        el.focus()
-        const len = el.value.length
-        el.setSelectionRange(len, len)
-    })
-}
-
-const handleChecklistBackspace = (item, e) => {
-    if (item.content !== '') return
-    e.preventDefault()
-
-    const list = sortedChecklist.value
-    const index = list.findIndex(i => i.id === item.id)
-    const previous = index > 0 ? list[index - 1] : null
-
-    if (previous) {
-        focusChecklistInputEnd(previous.id)
-    }
-
-    removeChecklistItem(item.id)
+    checklistSectionRef.value?.addItem()
 }
 
 const syncChecklistContent = async (item) => {
@@ -353,7 +225,6 @@ const removeChecklistItem = async (id) => {
 
     if (isTempId(item.id)) {
         form.checklist = form.checklist.filter(i => i.id !== id)
-        delete checklistInputRefs[id]
         return
     }
 
@@ -363,26 +234,14 @@ const removeChecklistItem = async (id) => {
     try {
         await deleteChecklistItem(noteId.value, id)
         form.checklist = form.checklist.filter(i => i.id !== id)
-        delete checklistInputRefs[id]
     } catch (error) {
         item.isDeleting = false
         checklistError.value = error?.data?.message || 'Gagal menghapus checklist.'
     }
 }
 
-const canAddImage = computed(() => form.images.length < MAX_IMAGES)
-
-const triggerImageUpload = () => {
-    if (!canAddImage.value) {
-        imageError.value = `Maksimal ${MAX_IMAGES} gambar`
-        return
-    }
-    imageInputRef.value?.click()
-}
-
-const handleImageSelected = async (e) => {
-    const files = Array.from(e.target.files ?? [])
-    e.target.value = ''
+const handleImageSelected = async (fileList) => {
+    const files = Array.from(fileList)
     imageError.value = ''
 
     const remainingSlots = MAX_IMAGES - form.images.length
